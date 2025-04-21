@@ -55,7 +55,7 @@ export const processReceiptImage = async (
     For each item, please include:
     - name: The item description
     - quantity: The number of units (default to 1 if not specified)
-    - unit_price: The price per unit (if available)
+    - unit_price: The price per unit (if available) 
     - price: The total price for this line item (quantity × unit_price)
     
     If the receipt shows unit prices and quantities separately, make sure to include them.

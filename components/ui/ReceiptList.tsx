@@ -17,6 +17,9 @@ interface ReceiptData {
   tax?: string | number;
   subtotal?: string | number;
   receiptId?: string;
+  paidBy?: string;
+  sharedWith?: string[];
+  expenseType?: number;
 }
 
 interface ReceiptListProps {
@@ -40,6 +43,30 @@ const TAX_RATES = [
   { label: "Custom Rate", value: -1 },
   { label: "Custom Amount", value: -2 },
 ];
+
+// Format a date string as YYYY/M/D or M/D if provided
+const formatDateForSheet = (dateString?: string): string => {
+  if (!dateString) return '';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    
+    // Use short format (M/D) for current year
+    const currentYear = new Date().getFullYear();
+    if (year === currentYear) {
+      return `${month}/${day}`;
+    }
+    
+    return `${year}/${month}/${day}`;
+  } catch (e) {
+    return dateString;
+  }
+};
 
 const ReceiptList: React.FC<ReceiptListProps> = ({ data, onEdit }) => {
   // Initialize data with empty items array if undefined
@@ -458,33 +485,118 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ data, onEdit }) => {
     return typeof value === 'number' ? value.toString() : value;
   };
 
+  // Format receipt data for copying to clipboard
+  const copyReceiptDataToClipboard = () => {
+    const currentData = editing ? editedData : safeData;
+    const paidBy = currentData.paidBy || '';
+    
+    // Get the total amount (after tax)
+    let totalAmount = 0;
+    
+    // If total is explicitly defined, use it
+    if (currentData.total) {
+      totalAmount = parseFloat(typeof currentData.total === 'string' ? currentData.total : currentData.total.toString());
+    } 
+    // Otherwise calculate total from subtotal and tax
+    else {
+      // Calculate subtotal
+      const subtotal = currentData.items.reduce((sum, item) => {
+        const price = parseFloat(typeof item.price === 'string' ? item.price : item.price?.toString() || '0');
+        return sum + price;
+      }, 0);
+      
+      // Get tax amount
+      const taxAmount = currentData.tax ? 
+        parseFloat(typeof currentData.tax === 'string' ? currentData.tax : currentData.tax.toString()) : 
+        0;
+      
+      totalAmount = subtotal + taxAmount;
+    }
+    
+    // Calculate average amount per person
+    const sharedCount = currentData.sharedWith?.length || 8; // Default to 8 (all housemates)
+    const perPersonAmount = (totalAmount / sharedCount).toFixed(3);
+    
+    // Create columns for each housemate with "1" if they share the expense
+    const housemateColumns = ['Timothy', 'Rachel', 'Bryan', 'Pigskin', 'Angel', 'Ivan', 'Esther', 'Ken9']
+      .map(name => {
+        if (!currentData.sharedWith || currentData.sharedWith.includes(name)) {
+          return '1';
+        }
+        return '';
+      }).join('\t');
+      
+    // Format date as YYYY/M/D or M/D (for current year)
+    const formattedDate = formatDateForSheet(currentData.date);
+    
+    // Use vendor name for the item name
+    const vendorName = currentData.vendor || 'Unknown Vendor';
+    
+    // Get expense type code (default to 1 - Food)
+    const expenseType = currentData.expenseType || 1;
+    const expenseTypeLabel = expenseType === 1 ? '食物' : 
+                            expenseType === 2 ? '飲品' : 
+                            expenseType === 3 ? '衣物' :
+                            expenseType === 4 ? '居家' :
+                            expenseType === 5 ? '電子產品' :
+                            expenseType === 6 ? '娛樂' :
+                            expenseType === 7 ? '交通' :
+                            expenseType === 8 ? '醫藥' : '其他';
+    
+    // Create a single row for the entire receipt
+    const formattedRow = `${formattedDate}\t${vendorName}\t${expenseTypeLabel}\t${totalAmount.toFixed(2)}\t${paidBy}\t${perPersonAmount}\t${perPersonAmount}\t${housemateColumns}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(formattedRow)
+      .then(() => {
+        // Show a success message
+        alert('Receipt data copied to clipboard!');
+      })
+      .catch(err => {
+        console.error('Failed to copy: ', err);
+        alert('Failed to copy receipt data. Please try again.');
+      });
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-gray-800">Receipt Details</h2>
-        {editing ? (
-          <div className="space-x-2">
-            <button 
-              onClick={handleSave}
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-            >
-              Save
-            </button>
-            <button 
-              onClick={handleCancel}
-              className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
+        <div className="flex space-x-2">
           <button 
-            onClick={() => setEditing(true)}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+            onClick={copyReceiptDataToClipboard}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center"
           >
-            Edit
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+              <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+            </svg>
+            Copy for Sheet
           </button>
-        )}
+          {editing ? (
+            <div className="space-x-2">
+              <button 
+                onClick={handleSave}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+              >
+                Save
+              </button>
+              <button 
+                onClick={handleCancel}
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setEditing(true)}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+            >
+              Edit
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Receipt Metadata */}
