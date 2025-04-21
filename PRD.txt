@@ -1,0 +1,158 @@
+🧾 PRD: HouseSplit MVP – Smart Receipt Tracker for Shared Expenses
+
+🎯 TL;DR
+A Next.js app using page-based routing (Node.js 20.18.0) where the user uploads receipt images. Receipts are processed with Gemini (via free API key) for image-to-text OCR. Transactions are stored in Google Sheets. Receipt images are also backed up to Google Drive using datetime-based filenames. UI built with Tailwind CSS.
+
+🥅 Goals
+Business Goals:
+- Make household expense tracking frictionless.
+- Use free LLM APIs where possible (Gemini) to reduce cost.
+- Avoid complex databases; store everything in Google Sheets.
+
+User Goals:
+- Upload receipts, get structured data.
+- Confirm/edit OCR line items.
+- Track which credit card was used.
+- Export to Google Sheets, backed up by Drive image.
+
+Non-Goals:
+- No DB or multi-user access (MVP is single-user).
+- No real-time updates to shared spreadsheet.
+
+👥 Users
+- You (Admin/Uploader): Uploads and confirms expenses.
+- Housemates: 8 members involved in cost-sharing (fixed list).
+
+📖 User Stories
+As the uploader, I want to:
+- Upload a receipt image.
+- Use Gemini to extract text.
+- Edit each item breakdown.
+- Check that line items match total.
+- Choose credit card used for tracking.
+- Save to Google Sheets.
+- Backup receipt to Google Drive.
+
+🧑‍🎨 User Experience (Flow)
+Upload:
+- Drag/drop or camera-based image upload.
+
+OCR + Parse:
+- Call Gemini API → get raw text in JSON format.
+- Run parsing logic to extract line items.
+- Autofill table of: item, quantity, price.
+
+Review + Edit:
+- Editable UI table with edit buttons for each row.
+- Show alert if total doesn't match line item sum.
+- Choose credit card used (from saved profiles).
+- Select shared members (checkbox).
+
+Export + Save:
+- Save to Google Sheets file.
+- Upload image to Drive with timestamp key.
+
+(Optional) History Page:
+- List previous uploads with metadata.
+
+🧠 Tech Stack
+⚙️ Runtime & Frontend
+- Next.js 14 (Page Router, not App Router)
+- Node.js 20.18.0 (managed via nvm)
+- Tailwind CSS for styling
+- React Hook Form for form management
+- TypeScript for type safety
+
+🖼️ OCR
+- Gemini API (free tier) for image-to-text
+- JSON response format from Gemini
+- Parse response into structured items (custom logic)
+- Fallback to manual entry if OCR fails
+
+📤 Drive Integration
+- Google Drive API + OAuth (NextAuth.js) for uploading images
+- Filename = receipt-YYYYMMDD-HHMMSS.jpg
+- Images kept indefinitely (user manages deletion)
+
+📊 Data Storage
+- Google Sheets integration
+- Each row = transaction
+- Fixed list of expense types and housemates
+
+📚 Google Sheets Format
+Date | Item | Type | Price | Paid by | For Record | Average | Timothy | Rachel | Bryan | Pigskin | Angel | Ivan | Esther | Ken9
+
+Expense Types:
+1: 食物 - Food (includes groceries and dining out)
+2: 飲品 - Drinks (beverages)
+3: 衣物 - Clothing
+4: 居家 - Household items (kitchen/bathroom/bedroom supplies)
+5: 電子產品 - Electronics
+6: 娛樂 - Entertainment (movies, amusement parks)
+7: 交通 - Transportation (TTC/Uber)
+8: 醫藥 - Medicine
+9: 其他 - Others
+
+Housemates (Fixed List):
+- Timothy
+- Rachel
+- Bryan
+- Pigskin
+- Angel
+- Ivan
+- Esther
+- Ken9
+
+🧮 Success Metrics
+- ≥ 85% OCR parse accuracy
+- Subtotal matches total > 90% of time
+- All receipt images uploaded to Drive successfully
+
+Error Handling
+- Partial/blurry receipts: Pop-up to prompt rescan or manual entry
+- Gemini API failures: Clear error message distinguishing API vs. image issues
+- Google Drive upload failures: Prompt user to retry
+- Google Sheets write failures: Show error and retry option
+
+User Setup
+- First-time setup: Configure credit card profiles (last 4 digits, name, provider)
+- OAuth permissions: Request minimal scopes (drive.file, spreadsheets)
+- Clear permission explanation screens
+
+Credit Card Management
+- Users can add multiple credit card profiles
+- Store card info in local cache
+- Only capture last 4 digits, name, and payment provider
+
+Mobile Experience
+- Responsive design for mobile browsers
+- Direct camera access for receipt capture
+
+Error Messages
+- OCR Failure: "Gemini API error: Unable to process image. Please try again later."
+- Image Quality: "Receipt image too blurry. Please retake with better lighting."
+- Framing Issue: "Unable to detect receipt boundaries. Please ensure receipt is fully visible."
+- Parsing Problem: "Failed to parse total amount. Please verify and enter manually."
+- Drive Upload: "Upload failed due to network issue. Retry?"
+- Auth Issue: "Google Drive access denied. Please check permissions."
+- Storage Issue: "Upload quota exceeded. Free up space in Google Drive."
+- Sheet Access: "Unable to write to Google Sheet. Check permissions and retry."
+- Missing Sheet: "Failed to access Google Sheet. Sheet may be deleted or moved."
+
+File Structure
+- /pages - Page routes following Next.js page router convention
+  - /index.js - Home/upload page
+  - /receipt/[id].js - Receipt detail/edit page
+  - /history.js - Historical receipts
+  - /settings.js - Credit card management
+  - /api/* - API routes for Gemini and Google services
+- /components - Reusable UI components
+- /styles - Tailwind configuration
+- /lib - Utility functions and API clients
+- /public - Static assets
+
+Development Setup
+- Node.js 20.18.0 (install via nvm)
+- npm install
+- Create .env.local with required API keys
+- npm run dev 

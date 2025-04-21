@@ -1,0 +1,58 @@
+{
+  "name": "expense-tracking",
+  "version": "1.0.0",
+  "description": "Expense tracking application with receipt analyzer",
+  "author": "",
+  "scripts": {
+    "task-dev": "node scripts/dev.js",
+    "task-list": "node scripts/dev.js list",
+    "task-generate": "node scripts/dev.js generate",
+    "task-parse-prd": "node scripts/dev.js parse-prd",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "task": "node scripts/dev.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "boxen": "^8.0.1",
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^11.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "fastmcp": "^1.20.5",
+    "figlet": "^1.8.0",
+    "formidable": "^3.5.3",
+    "fuse.js": "^7.0.0",
+    "gradient-string": "^3.0.0",
+    "helmet": "^8.1.0",
+    "inquirer": "^12.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "lru-cache": "^10.2.0",
+    "net": "^1.0.2",
+    "next": "14",
+    "next-auth": "^4.24.11",
+    "openai": "^4.89.0",
+    "ora": "^8.2.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-hook-form": "^7.56.0",
+    "typescript": "^5.3.3"
+  },
+  "devDependencies": {
+    "@types/formidable": "^3.4.5",
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.2.69",
+    "@types/react-dom": "^18.2.22",
+    "autoprefixer": "^10.4.18",
+    "ignore-loader": "^0.1.2",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.1"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}
