@@ -1,42 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { copyReceiptDataToClipboard, ReceiptData, ReceiptItem } from '../../lib/clipboardUtils';
 
-interface ReceiptItem {
-  description: string;
-  price: string | number;
-  unit_price?: string | number;
-  quantity?: string | number;
-  date?: string;
-  taxable?: boolean; // Flag to indicate if item is taxable
-}
-
-interface ReceiptData {
-  items: ReceiptItem[];
-  total?: string | number;
-  vendor?: string;
-  date?: string;
-  tax?: string | number;
-  subtotal?: string | number;
-  receiptId?: string;
-  paidBy?: string;
-  sharedWith?: string[];
-  expenseType?: number;
-}
-
-interface ReceiptListProps {
-  data: ReceiptData;
-  onEdit?: (editedData: ReceiptData) => void;
-}
-
-// Tax rate options for different provinces
-const TAX_RATES = [
+// Tax rates for different provinces
+const taxRates = [
   { label: "Ontario (HST 13%)", value: 0.13 },
+  { label: "Quebec (GST+QST 14.975%)", value: 0.14975 },
   { label: "British Columbia (GST+PST 12%)", value: 0.12 },
   { label: "Alberta (GST 5%)", value: 0.05 },
-  { label: "Quebec (GST+QST 14.975%)", value: 0.14975 },
   { label: "Nova Scotia (HST 15%)", value: 0.15 },
   { label: "New Brunswick (HST 15%)", value: 0.15 },
-  { label: "PEI (HST 15%)", value: 0.15 },
   { label: "Newfoundland (HST 15%)", value: 0.15 },
+  { label: "PEI (HST 15%)", value: 0.15 },
   { label: "Saskatchewan (GST+PST 11%)", value: 0.11 },
   { label: "Manitoba (GST+PST 12%)", value: 0.12 },
   { label: "No Tax (0%)", value: 0 },
@@ -44,29 +18,10 @@ const TAX_RATES = [
   { label: "Custom Amount", value: -2 },
 ];
 
-// Format a date string as YYYY/M/D or M/D if provided
-const formatDateForSheet = (dateString?: string): string => {
-  if (!dateString) return '';
-  
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    
-    // Use short format (M/D) for current year
-    const currentYear = new Date().getFullYear();
-    if (year === currentYear) {
-      return `${month}/${day}`;
-    }
-    
-    return `${year}/${month}/${day}`;
-  } catch (e) {
-    return dateString;
-  }
-};
+interface ReceiptListProps {
+  data: ReceiptData;
+  onEdit?: (editedData: ReceiptData) => void;
+}
 
 const ReceiptList: React.FC<ReceiptListProps> = ({ data, onEdit }) => {
   // Initialize data with empty items array if undefined
@@ -240,243 +195,150 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ data, onEdit }) => {
     updateTotals(newItems);
   };
 
-  // Update totals when items or tax rate changes
+  // Update all receipt totals
   const updateTotals = (items = editedData.items) => {
-    // Calculate subtotal of all items
-    const totalSubtotal = items.reduce((sum, item) => {
-      const price = typeof item.price === 'string' 
-        ? parseFloat(item.price.replace(/[^0-9.]/g, '') || '0') || 0
-        : item.price || 0;
+    // Calculate subtotal
+    const subtotal = calculateSubtotal();
     
-      return sum + (price);
-    }, 0);
-
-    console.log('totalSubtotal', totalSubtotal);
+    // Calculate taxable subtotal
+    const taxableSubtotal = calculateTaxableSubtotal();
     
-    // Calculate subtotal of taxable items
-    const taxableSubtotal = items.reduce((sum, item) => {
-      if (!item.taxable) return sum;
-      
-      const price = typeof item.price === 'string' 
-        ? parseFloat(item.price.replace(/[^0-9.]/g, '') || '0') || 0
-        : item.price || 0;
-      
-      return sum + (price);
-    }, 0);
-    
-    // Calculate tax based on selected method
-    let taxAmount = 0;
-    if (selectedTaxRate === -2) {
-      // Custom amount
-      taxAmount = parseFloat(customTaxAmount) || 0;
-    } else {
-      // Rate-based
-      const taxRate = selectedTaxRate === -1 ? customTaxRate : TAX_RATES.find(rate => rate.value === selectedTaxRate)?.value || 0.13;
-      taxAmount = parseFloat((taxableSubtotal * taxRate).toFixed(2));
-    }
+    // Calculate tax amount
+    let tax = calculateTax();
     
     // Calculate total
-    const total = parseFloat((totalSubtotal + taxAmount).toFixed(2));
+    const total = calculateTotal();
     
-    // Update edited data with new calculations
     setEditedData(prev => ({
       ...prev,
-      subtotal: totalSubtotal.toFixed(2),
-      tax: selectedTaxRate === -2 ? customTaxAmount : taxAmount.toFixed(2),
+      subtotal: subtotal.toFixed(2),
+      tax: tax.toFixed(2),
       total: total.toFixed(2)
     }));
   };
 
-  // Recalculate when tax rate changes
-  useEffect(() => {
-    if (editing) {
-      updateTotals();
-    }
-  }, [selectedTaxRate, customTaxRate]);
-
-  // Calculate subtotal for display only - considering all items
+  // Calculate subtotal of all items
   const calculateSubtotal = () => {
-    if (!editedData.items || !editedData.items.length) return '0.00';
-    
-    const subtotal = editedData.items.reduce((sum, item) => {
-      // Handle price being either string or number
-      const price = typeof item.price === 'string' 
-        ? parseFloat(item.price.replace(/[^0-9.]/g, '') || '0') || 0
-        : item.price || 0;
-      
-      // Handle quantity being either string or number
-      const quantity = item.quantity 
-        ? typeof item.quantity === 'string'
-          ? parseFloat(item.quantity) || 1
-          : item.quantity || 1
-        : 1;
-        
-      return sum + (price * quantity);
+    const subtotal = (editedData.items || []).reduce((sum, item) => {
+      const price = parseFloat(typeof item.price === 'string' ? item.price : item.price?.toString() || '0');
+      return sum + price;
     }, 0);
     
-    return subtotal.toFixed(2);
+    return subtotal;
   };
 
-  // Calculate taxable subtotal for display - considering only taxable items
+  // Calculate taxable subtotal (sum of all items marked as taxable)
   const calculateTaxableSubtotal = () => {
-    if (!editedData.items || !editedData.items.length) return '0.00';
-    
-    const subtotal = editedData.items.reduce((sum, item) => {
-      if (!item.taxable) return sum;
-
-      // Handle price being either string or number
-      const price = typeof item.price === 'string' 
-        ? parseFloat(item.price.replace(/[^0-9.]/g, '') || '0') || 0
-        : item.price || 0;
-      
-      // Handle quantity being either string or number
-      const quantity = item.quantity 
-        ? typeof item.quantity === 'string'
-          ? parseFloat(item.quantity) || 1
-          : item.quantity || 1
-        : 1;
-        
-      return sum + (price * quantity);
+    const taxableSubtotal = (editedData.items || []).reduce((sum, item) => {
+      if (item.taxable !== false) {
+        const price = parseFloat(typeof item.price === 'string' ? item.price : item.price?.toString() || '0');
+        return sum + price;
+      }
+      return sum;
     }, 0);
     
-    return subtotal.toFixed(2);
+    return taxableSubtotal;
   };
 
-  // Calculate tax amount
+  // Calculate tax based on selected tax rate and taxable subtotal
   const calculateTax = () => {
+    // If using a custom tax amount, return that directly
     if (selectedTaxRate === -2) {
-      // If using custom tax amount, return it directly
-      return customTaxAmount;
+      return parseFloat(customTaxAmount) || 0;
     }
     
-    // Otherwise calculate based on rate
-    const taxableSubtotal = parseFloat(calculateTaxableSubtotal());
-    const taxRate = selectedTaxRate === -1 ? customTaxRate : TAX_RATES.find(rate => rate.value === selectedTaxRate)?.value || 0.13;
-    return (taxableSubtotal * taxRate).toFixed(2);
-  };
-  
-  // Calculate total from items and tax
-  const calculateTotal = () => {
-    const subtotal = parseFloat(calculateSubtotal());
-    const tax = parseFloat(calculateTax());
-    return (subtotal + tax).toFixed(2);
+    const taxableSubtotal = calculateTaxableSubtotal();
+    
+    // Calculate based on selected rate
+    let taxRate = 0;
+    
+    if (selectedTaxRate === -1) {
+      // Custom rate
+      taxRate = customTaxRate;
+    } else if (selectedTaxRate >= 0) {
+      // Preset rate
+      taxRate = selectedTaxRate;
+    } else {
+      // Default rate 13% if none selected
+      taxRate = 0.13;
+    }
+    
+    return taxableSubtotal * taxRate;
   };
 
-  // Handle tax rate change
+  // Calculate total (subtotal + tax)
+  const calculateTotal = () => {
+    const subtotal = calculateSubtotal();
+    const tax = calculateTax();
+    return subtotal + tax;
+  };
+
+  // Handle tax rate selection
   const handleTaxRateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const rate = parseFloat(e.target.value);
-    setSelectedTaxRate(rate);
+    const value = parseFloat(e.target.value);
+    setSelectedTaxRate(value);
     
-    // Update edited data with new tax amount
-    if (rate === -2) {
-      // Custom amount - don't calculate based on rate
-      const taxAmount = parseFloat(customTaxAmount);
-      const subtotal = parseFloat(calculateSubtotal());
-      console.log('subtotal', subtotal);
-      console.log('taxAmount', taxAmount);
-      setEditedData(prev => ({
-        ...prev,
-        tax: customTaxAmount,
-        total: (subtotal + taxAmount).toFixed(2)
-      }));
-    } else {
-      // Rate-based calculation
-      const subtotal = parseFloat(calculateSubtotal());
-      const taxableSubtotal = parseFloat(calculateTaxableSubtotal());
-      const taxAmount = rate === -1 
-        ? taxableSubtotal * customTaxRate 
-        : taxableSubtotal * rate;
-      
-      setEditedData(prev => ({
-        ...prev,
-        tax: taxAmount.toFixed(2),
-        total: (subtotal + taxAmount).toFixed(2)
-      }));
+    // If not using custom rate or amount, update totals
+    if (value !== -1 && value !== -2) {
+      setEditedData(prev => {
+        const taxableSubtotal = calculateTaxableSubtotal();
+        const taxAmount = taxableSubtotal * value;
+        const newTotal = calculateSubtotal() + taxAmount;
+        
+        return {
+          ...prev,
+          tax: taxAmount.toFixed(2),
+          total: newTotal.toFixed(2)
+        };
+      });
     }
   };
 
   // Handle custom tax rate change
   const handleCustomTaxRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rate = parseFloat(e.target.value) / 100; // Convert percentage to decimal
+    let value = e.target.value.replace(/[^0-9.]/g, '');
+    
+    // Convert to percentage (e.g., 13 -> 0.13)
+    let rate = parseFloat(value) / 100;
+    if (isNaN(rate)) rate = 0;
+    
     setCustomTaxRate(rate);
     
-    // Update edited data with new tax amount
-    const subtotal = parseFloat(calculateSubtotal());
-    const taxAmount = subtotal * rate;
-    
-    setEditedData({
-      ...editedData,
-      tax: taxAmount.toFixed(2),
-      total: (subtotal + taxAmount).toFixed(2)
+    setEditedData(prev => {
+      const taxableSubtotal = calculateTaxableSubtotal();
+      const taxAmount = taxableSubtotal * rate;
+      const newTotal = calculateSubtotal() + taxAmount;
+      
+      return {
+        ...prev,
+        tax: taxAmount.toFixed(2),
+        total: newTotal.toFixed(2)
+      };
     });
   };
 
   // Handle custom tax amount change
   const handleCustomTaxAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Sanitize input to ensure it's a valid number
     let value = e.target.value.replace(/[^0-9.]/g, '');
-    
-    // Only allow one decimal point
-    const decimalCount = (value.match(/\./g) || []).length;
-    if (decimalCount > 1) {
-      const parts = value.split('.');
-      value = parts[0] + '.' + parts.slice(1).join('');
-    }
-    
-    // Limit to 2 decimal places
-    if (value.includes('.')) {
-      const parts = value.split('.');
-      if (parts[1].length > 2) {
-        value = parts[0] + '.' + parts[1].substring(0, 2);
-      }
-    }
     
     setCustomTaxAmount(value);
     
-    // Update edited data with new tax amount
     const taxAmount = parseFloat(value) || 0;
-    const subtotal = parseFloat(calculateSubtotal());
     
-    setEditedData(prev => ({
-      ...prev,
-      tax: value,
-      total: (subtotal + taxAmount).toFixed(2)
-    }));
+    setEditedData(prev => {
+      const newTotal = calculateSubtotal() + taxAmount;
+      
+      return {
+        ...prev,
+        tax: taxAmount.toFixed(2),
+        total: newTotal.toFixed(2)
+      };
+    });
   };
 
-  // Initialize tax rate selector based on current tax value
-  useEffect(() => {
-    if (editedData.tax && editedData.subtotal) {
-      const subtotal = typeof editedData.subtotal === 'number' 
-        ? editedData.subtotal 
-        : parseFloat(editedData.subtotal || '0');
-      
-      const tax = typeof editedData.tax === 'number' 
-        ? editedData.tax 
-        : parseFloat(editedData.tax || '0');
-      
-      if (subtotal > 0) {
-        const calculatedRate = tax / subtotal;
-        const predefinedRate = TAX_RATES.find(rate => 
-          Math.abs(rate.value - calculatedRate) < 0.001
-        );
-        
-        if (predefinedRate) {
-          setSelectedTaxRate(predefinedRate.value);
-        } else {
-          setSelectedTaxRate(-1); // Custom
-          setCustomTaxRate(calculatedRate);
-        }
-      }
-    } else {
-      // Default to Ontario HST
-      setSelectedTaxRate(0.13);
-    }
-  }, [data]); // Only run when data changes
-
-  // Safely get items array for rendering
+  // Get filtered items (handle empty/missing items gracefully)
   const getItemsToRender = () => {
-    return (editing ? (editedData?.items || []) : (safeData?.items || []));
+    return editing ? editedData.items || [] : safeData.items || [];
   };
 
   // Format a price or quantity value for display
@@ -485,77 +347,23 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ data, onEdit }) => {
     return typeof value === 'number' ? value.toString() : value;
   };
 
-  // Format receipt data for copying to clipboard
-  const copyReceiptDataToClipboard = () => {
+  // Handle clipboard copy function
+  const handleCopyToClipboard = () => {
     const currentData = editing ? editedData : safeData;
-    const paidBy = currentData.paidBy || '';
     
-    // Get the total amount (after tax)
-    let totalAmount = 0;
+    // Ensure we have the final calculated values before copying
+    const dataToExport = {
+      ...currentData,
+      subtotal: formatCurrency(currentData.subtotal || calculateSubtotal()),
+      tax: formatCurrency(currentData.tax || calculateTax()),
+      total: formatCurrency(currentData.total || calculateTotal())
+    };
     
-    // If total is explicitly defined, use it
-    if (currentData.total) {
-      totalAmount = parseFloat(typeof currentData.total === 'string' ? currentData.total : currentData.total.toString());
-    } 
-    // Otherwise calculate total from subtotal and tax
-    else {
-      // Calculate subtotal
-      const subtotal = currentData.items.reduce((sum, item) => {
-        const price = parseFloat(typeof item.price === 'string' ? item.price : item.price?.toString() || '0');
-        return sum + price;
-      }, 0);
-      
-      // Get tax amount
-      const taxAmount = currentData.tax ? 
-        parseFloat(typeof currentData.tax === 'string' ? currentData.tax : currentData.tax.toString()) : 
-        0;
-      
-      totalAmount = subtotal + taxAmount;
-    }
-    
-    // Calculate average amount per person
-    const sharedCount = currentData.sharedWith?.length || 8; // Default to 8 (all housemates)
-    const perPersonAmount = (totalAmount / sharedCount).toFixed(3);
-    
-    // Create columns for each housemate with "1" if they share the expense
-    const housemateColumns = ['Timothy', 'Rachel', 'Bryan', 'Pigskin', 'Angel', 'Ivan', 'Esther', 'Ken9']
-      .map(name => {
-        if (!currentData.sharedWith || currentData.sharedWith.includes(name)) {
-          return '1';
-        }
-        return '';
-      }).join('\t');
-      
-    // Format date as YYYY/M/D or M/D (for current year)
-    const formattedDate = formatDateForSheet(currentData.date);
-    
-    // Use vendor name for the item name
-    const vendorName = currentData.vendor || 'Unknown Vendor';
-    
-    // Get expense type code (default to 1 - Food)
-    const expenseType = currentData.expenseType || 1;
-    const expenseTypeLabel = expenseType === 1 ? '食物' : 
-                            expenseType === 2 ? '飲品' : 
-                            expenseType === 3 ? '衣物' :
-                            expenseType === 4 ? '居家' :
-                            expenseType === 5 ? '電子產品' :
-                            expenseType === 6 ? '娛樂' :
-                            expenseType === 7 ? '交通' :
-                            expenseType === 8 ? '醫藥' : '其他';
-    
-    // Create a single row for the entire receipt
-    const formattedRow = `${formattedDate}\t${vendorName}\t${expenseTypeLabel}\t${totalAmount.toFixed(2)}\t${paidBy}\t${perPersonAmount}\t${perPersonAmount}\t${housemateColumns}`;
-    
-    // Copy to clipboard
-    navigator.clipboard.writeText(formattedRow)
-      .then(() => {
-        // Show a success message
-        alert('Receipt data copied to clipboard!');
-      })
-      .catch(err => {
-        console.error('Failed to copy: ', err);
-        alert('Failed to copy receipt data. Please try again.');
-      });
+    copyReceiptDataToClipboard(
+      dataToExport, 
+      () => alert('Receipt data copied to clipboard!'),
+      (error) => alert(error)
+    );
   };
 
   return (
@@ -564,7 +372,7 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ data, onEdit }) => {
         <h2 className="text-xl font-semibold text-gray-800">Receipt Details</h2>
         <div className="flex space-x-2">
           <button 
-            onClick={copyReceiptDataToClipboard}
+            onClick={handleCopyToClipboard}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
@@ -803,7 +611,7 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ data, onEdit }) => {
                 onChange={handleTaxRateChange}
                 className="w-full p-1 text-sm border rounded mb-2"
               >
-                {TAX_RATES.map((rate) => (
+                {taxRates.map((rate) => (
                   <option key={rate.value} value={rate.value}>
                     {rate.label}
                   </option>

@@ -4,8 +4,10 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import UploadComponent from '../components/ui/UploadComponent';
 import ReceiptList from '../components/ui/ReceiptList';
+import EditableReceiptTable from '../components/ui/EditableReceiptTable';
 import { ExpenseType, HOUSEMATES } from '../lib/sheetsService';
 import { CreditCard, getCreditCards, getDefaultCreditCard } from '../lib/creditCardService';
+import Layout from '../components/Layout';
 
 // Define interface for receipt items
 interface ReceiptItem {
@@ -47,6 +49,7 @@ export default function Home() {
   const [expenseType, setExpenseType] = useState<ExpenseType>(ExpenseType.Food);
   const [selectedHousemates, setSelectedHousemates] = useState<string[]>(HOUSEMATES);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Load credit cards on component mount
   useEffect(() => {
@@ -66,6 +69,7 @@ export default function Home() {
     const receiptData = result.ocrResult ? result.ocrResult : result as unknown as ReceiptData;
     setOcrResult(receiptData);
     setReceiptFile(result.originalFile);
+    setIsEditing(true);
   };
 
   // Handle OCR error
@@ -77,6 +81,12 @@ export default function Home() {
   // Handle receipt edit
   const handleEditReceipt = (editedData: ReceiptData) => {
     setOcrResult(editedData);
+    setIsEditing(false);
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setIsEditing(false);
   };
 
   // Toggle housemate selection
@@ -169,6 +179,11 @@ export default function Home() {
         
         setSuccess('Receipt saved successfully!');
         setTimeout(() => setSuccess(null), 5000);
+        
+        // Reset the form after successful save
+        setOcrResult(null);
+        setReceiptFile(null);
+        setIsEditing(false);
       } catch (error) {
         console.error('Error saving receipt:', error);
         setError((error as Error).message);
@@ -181,215 +196,212 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <Layout>
       <Head>
         <title>Receipt Scanner</title>
         <meta name="description" content="Scan and track your receipts" />
       </Head>
 
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Receipt Scanner</h1>
-          
-          <div className="flex items-center space-x-4">
-            {status === 'authenticated' ? (
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-700">
-                  {session.user?.name}
-                </span>
-                <button
-                  onClick={() => router.push('/settings')}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  Settings
-                </button>
-              </div>
-            ) : (
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        {/* Main Content */}
+        {!session && status !== 'loading' ? (
+          <div className="text-center py-12">
+            <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+              Welcome to Receipt Scanner
+            </h2>
+            <p className="mt-4 text-lg text-gray-500">
+              Please sign in with your Google account to get started.
+            </p>
+            <div className="mt-8">
               <button
                 onClick={() => signIn('google')}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
               >
-                Sign In
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {success && (
-          <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-green-700">{success}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          {!ocrResult ? (
-            <div className="p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">Upload Receipt</h2>
-              <UploadComponent 
-                onUploadComplete={(result) => handleOcrComplete(result)}
-                onError={handleOcrError}
-              />
-            </div>
-          ) : (
-            <div className="space-y-6 p-6">
-              <ReceiptList 
-                data={ocrResult} 
-                onEdit={handleEditReceipt} 
-              />
-              
-              {/* Expense Type Selection */}
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Expense Type</h3>
-                <select
-                  value={expenseType}
-                  onChange={(e) => setExpenseType(Number(e.target.value) as ExpenseType)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                <svg
+                  className="h-5 w-5 mr-2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 48 48"
                 >
-                  <option value={ExpenseType.Food}>食物 - Food</option>
-                  <option value={ExpenseType.Drinks}>飲品 - Drinks</option>
-                  <option value={ExpenseType.Clothing}>衣物 - Clothing</option>
-                  <option value={ExpenseType.Household}>居家 - Household</option>
-                  <option value={ExpenseType.Electronics}>電子產品 - Electronics</option>
-                  <option value={ExpenseType.Entertainment}>娛樂 - Entertainment</option>
-                  <option value={ExpenseType.Transportation}>交通 - Transportation</option>
-                  <option value={ExpenseType.Medicine}>醫藥 - Medicine</option>
-                  <option value={ExpenseType.Others}>其他 - Others</option>
-                </select>
-              </div>
-              
-              {/* Credit Card Selection */}
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Payment Method</h3>
-                {creditCards.length === 0 ? (
-                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                    <div className="flex">
-                      <div className="ml-3">
-                        <p className="text-sm text-yellow-700">
-                          No credit cards found. <button onClick={() => router.push('/settings')} className="font-medium underline">Add a card</button>
-                        </p>
-                      </div>
-                    </div>
+                  <path
+                    fill="#FFC107"
+                    d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
+                  />
+                  <path
+                    fill="#FF3D00"
+                    d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
+                  />
+                  <path
+                    fill="#4CAF50"
+                    d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"
+                  />
+                  <path
+                    fill="#1976D2"
+                    d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
+                  />
+                </svg>
+                Sign in with Google
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Rest of the existing content for authenticated users
+          <div className="space-y-8">
+            {/* Add existing authenticated content here */}
+            <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+              <div className="p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Receipt</h2>
+                {!ocrResult && (
+                  <UploadComponent
+                    onUploadComplete={handleOcrComplete}
+                    onError={handleOcrError}
+                    maxFileSize={10}
+                    acceptedFileTypes={['image/jpeg', 'image/png', 'image/gif']}
+                  />
+                )}
+                
+                {/* Show EditableReceiptTable when in editing mode */}
+                {ocrResult && isEditing && (
+                  <div className="mt-6">
+                    <EditableReceiptTable
+                      data={ocrResult}
+                      onSave={handleEditReceipt}
+                      onCancel={handleCancelEdit}
+                    />
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {creditCards.map(card => (
-                      <div 
-                        key={card.id}
-                        className={`border p-4 rounded-md cursor-pointer ${
-                          selectedCard?.id === card.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                        onClick={() => setSelectedCard(card)}
-                      >
-                        <div className="font-medium">{card.name}</div>
-                        <div className="text-gray-600">
-                          {card.provider} •••• {card.last4Digits}
+                )}
+                
+                {/* Show receipt review and settings when OCR result exists but not editing */}
+                {ocrResult && !isEditing && (
+                  <div className="mt-6">
+                    <div className="mb-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-3">Receipt Details</h3>
+                      <ReceiptList data={ocrResult} onEdit={handleEditReceipt} />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      {/* Credit Card Selection */}
+                      <div>
+                        <h3 className="text-md font-medium text-gray-900 mb-2">Select Credit Card</h3>
+                        <div className="space-y-2">
+                          {creditCards.map((card) => (
+                            <div key={card.id} className="flex items-center">
+                              <input
+                                type="radio"
+                                id={`card-${card.id}`}
+                                name="creditCard"
+                                checked={selectedCard?.id === card.id}
+                                onChange={() => setSelectedCard(card)}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                              />
+                              <label htmlFor={`card-${card.id}`} className="ml-2 block text-sm text-gray-900">
+                                {card.name} ({card.provider} ending in {card.last4Digits})
+                              </label>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
+                      
+                      {/* Expense Type Selection */}
+                      <div>
+                        <h3 className="text-md font-medium text-gray-900 mb-2">Select Expense Type</h3>
+                        <select
+                          value={expenseType}
+                          onChange={(e) => setExpenseType(Number(e.target.value) as ExpenseType)}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        >
+                          {Object.entries(ExpenseType)
+                            .filter(([key]) => isNaN(Number(key)))
+                            .map(([key, value]) => (
+                              <option key={value} value={value}>
+                                {key}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    {/* Housemates Selection */}
+                    <div className="mb-6">
+                      <h3 className="text-md font-medium text-gray-900 mb-2">Select Housemates</h3>
+                      <div className="mb-2">
+                        <button
+                          type="button"
+                          onClick={selectAllHousemates}
+                          className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded mr-2"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={deselectAllHousemates}
+                          className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-1 rounded"
+                        >
+                          Deselect All
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {HOUSEMATES.map((housemate) => (
+                          <div key={housemate} className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={`housemate-${housemate}`}
+                              checked={selectedHousemates.includes(housemate)}
+                              onChange={() => toggleHousemate(housemate)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor={`housemate-${housemate}`} className="ml-2 block text-sm text-gray-900">
+                              {housemate}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Save Button */}
+                    <div>
+                      <button
+                        type="button"
+                        onClick={saveReceipt}
+                        disabled={uploadingToDrive || savingToSheets}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 disabled:cursor-not-allowed"
+                      >
+                        {uploadingToDrive ? (
+                          'Uploading to Drive...'
+                        ) : savingToSheets ? (
+                          'Saving to Sheets...'
+                        ) : (
+                          'Save Receipt'
+                        )}
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(true)}
+                        className="ml-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        Edit Receipt
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Error and Success Messages */}
+                {error && (
+                  <div className="mt-4 p-3 bg-red-100 text-red-800 rounded-md">
+                    {error}
+                  </div>
+                )}
+                
+                {success && (
+                  <div className="mt-4 p-3 bg-green-100 text-green-800 rounded-md">
+                    {success}
                   </div>
                 )}
               </div>
-              
-              {/* Housemate Selection */}
-              <div className="border-t pt-6">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-lg font-medium text-gray-900">Shared With</h3>
-                  <div className="space-x-2">
-                    <button 
-                      onClick={selectAllHousemates}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      Select All
-                    </button>
-                    <button 
-                      onClick={deselectAllHousemates}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      Deselect All
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {HOUSEMATES.map(name => (
-                    <div 
-                      key={name}
-                      className={`border p-3 rounded-md cursor-pointer ${
-                        selectedHousemates.includes(name) ? 'border-green-500 bg-green-50' : 'border-gray-200'
-                      }`}
-                      onClick={() => toggleHousemate(name)}
-                    >
-                      <div className="flex items-center">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedHousemates.includes(name)}
-                          onChange={() => toggleHousemate(name)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <span className="ml-2">{name}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="border-t pt-6 flex justify-between">
-                <button
-                  onClick={() => {
-                    setOcrResult(null);
-                    setReceiptFile(null);
-                    setDriveFileId(null);
-                  }}
-                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-md font-medium transition-colors duration-200"
-                >
-                  Cancel
-                </button>
-                
-                <button
-                  onClick={saveReceipt}
-                  disabled={uploadingToDrive || savingToSheets}
-                  className={`bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-md font-medium transition-colors duration-200 ${
-                    (uploadingToDrive || savingToSheets) ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {uploadingToDrive ? 'Uploading...' : 
-                   savingToSheets ? 'Saving...' : 
-                   'Save Receipt'}
-                </button>
-              </div>
             </div>
-          )}
-        </div>
-      </main>
-
-      <footer className="py-6 text-center text-gray-500 text-sm">
-        &copy; {new Date().getFullYear()} Receipt Scanner - All rights reserved
-      </footer>
-    </div>
+          </div>
+        )}
+      </div>
+    </Layout>
   );
 } 
