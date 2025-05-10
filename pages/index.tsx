@@ -3,7 +3,6 @@ import { useSession, signIn } from 'next-auth/react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import UploadComponent from '../components/ui/UploadComponent';
-import ReceiptList from '../components/ui/ReceiptList';
 import EditableReceiptTable from '../components/ui/EditableReceiptTable';
 import { ExpenseType, HOUSEMATES } from '../lib/sheetsService';
 import { CreditCard, getCreditCards, getDefaultCreditCard } from '../lib/creditCardService';
@@ -267,121 +266,6 @@ export default function Home() {
                       onSave={handleEditReceipt}
                       onCancel={handleCancelEdit}
                     />
-                  </div>
-                )}
-                
-                {/* Show receipt review and settings when OCR result exists but not editing */}
-                {ocrResult && !isEditing && (
-                  <div className="mt-6">
-                    <div className="mb-6">
-                      <h3 className="text-lg font-medium text-gray-900 mb-3">Receipt Details</h3>
-                      <ReceiptList data={ocrResult} onEdit={handleEditReceipt} />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                      {/* Credit Card Selection */}
-                      <div>
-                        <h3 className="text-md font-medium text-gray-900 mb-2">Select Credit Card</h3>
-                        <div className="space-y-2">
-                          {creditCards.map((card) => (
-                            <div key={card.id} className="flex items-center">
-                              <input
-                                type="radio"
-                                id={`card-${card.id}`}
-                                name="creditCard"
-                                checked={selectedCard?.id === card.id}
-                                onChange={() => setSelectedCard(card)}
-                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                              />
-                              <label htmlFor={`card-${card.id}`} className="ml-2 block text-sm text-gray-900">
-                                {card.name} ({card.provider} ending in {card.last4Digits})
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* Expense Type Selection */}
-                      <div>
-                        <h3 className="text-md font-medium text-gray-900 mb-2">Select Expense Type</h3>
-                        <select
-                          value={expenseType}
-                          onChange={(e) => setExpenseType(Number(e.target.value) as ExpenseType)}
-                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                        >
-                          {Object.entries(ExpenseType)
-                            .filter(([key]) => isNaN(Number(key)))
-                            .map(([key, value]) => (
-                              <option key={value} value={value}>
-                                {key}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-                    </div>
-                    
-                    {/* Housemates Selection */}
-                    <div className="mb-6">
-                      <h3 className="text-md font-medium text-gray-900 mb-2">Select Housemates</h3>
-                      <div className="mb-2">
-                        <button
-                          type="button"
-                          onClick={selectAllHousemates}
-                          className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded mr-2"
-                        >
-                          Select All
-                        </button>
-                        <button
-                          type="button"
-                          onClick={deselectAllHousemates}
-                          className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-1 rounded"
-                        >
-                          Deselect All
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {HOUSEMATES.map((housemate) => (
-                          <div key={housemate} className="flex items-center">
-                            <input
-                              type="checkbox"
-                              id={`housemate-${housemate}`}
-                              checked={selectedHousemates.includes(housemate)}
-                              onChange={() => toggleHousemate(housemate)}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                            />
-                            <label htmlFor={`housemate-${housemate}`} className="ml-2 block text-sm text-gray-900">
-                              {housemate}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Save Button */}
-                    <div>
-                      <button
-                        type="button"
-                        onClick={saveReceipt}
-                        disabled={uploadingToDrive || savingToSheets}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 disabled:cursor-not-allowed"
-                      >
-                        {uploadingToDrive ? (
-                          'Uploading to Drive...'
-                        ) : savingToSheets ? (
-                          'Saving to Sheets...'
-                        ) : (
-                          'Save Receipt'
-                        )}
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={() => setIsEditing(true)}
-                        className="ml-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        Edit Receipt
-                      </button>
-                    </div>
                   </div>
                 )}
                 

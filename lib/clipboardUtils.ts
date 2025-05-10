@@ -22,6 +22,7 @@ export interface ReceiptData {
   sharedWith?: string[];
   involvedHousemates?: Record<string, number>;
   expenseType?: number;
+  savedAt?: string; // Timestamp when saved to history
 }
 
 // Format a date string as YYYY/M/D or M/D if provided
