@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { CreditCard, getCreditCards, saveCreditCard, deleteCreditCard, setDefaultCreditCard, validateCreditCard } from '../lib/creditCardService';
 
 export default function Settings() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -21,13 +17,6 @@ export default function Settings() {
   useEffect(() => {
     setCreditCards(getCreditCards());
   }, []);
-
-  // Redirect to sign in page if not authenticated
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
-    }
-  }, [status, router]);
 
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,10 +79,6 @@ export default function Settings() {
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
-  if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Head>
@@ -103,12 +88,6 @@ export default function Settings() {
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Back to Home
-          </button>
         </div>
         
         {/* Success Message */}
